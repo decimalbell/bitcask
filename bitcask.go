@@ -1,6 +1,7 @@
 package bitcask
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -165,7 +166,7 @@ func loadDataFile(dir string, name string, fileID uint32, keydir *keydir) (*os.F
 	return file, nil
 }
 
-func (bitcask *Bitcask) Get(key []byte) ([]byte, error) {
+func (bitcask *Bitcask) Get(ctx context.Context, key []byte) ([]byte, error) {
 	item, ok := bitcask.keydir.Get(string(key))
 	if !ok {
 		return nil, nil
@@ -203,14 +204,14 @@ func (bitcask *Bitcask) Get(key []byte) ([]byte, error) {
 	return value, nil
 }
 
-func (bitcask *Bitcask) Put(key, value []byte) error {
+func (bitcask *Bitcask) Put(ctx context.Context, key, value []byte) error {
 	ts := uint32(time.Now().Unix())
 	buf := entry.Encode(key, value, ts)
 
 	bitcask.mu.Lock()
 	defer bitcask.mu.Unlock()
 
-	if err := bitcask.putLocked(buf); err != nil {
+	if err := bitcask.putLocked(ctx, buf); err != nil {
 		return err
 	}
 	item := &item{
@@ -223,7 +224,7 @@ func (bitcask *Bitcask) Put(key, value []byte) error {
 	return nil
 }
 
-func (bitcask *Bitcask) putLocked(buf []byte) error {
+func (bitcask *Bitcask) putLocked(ctx context.Context, buf []byte) error {
 	n := uint32(len(buf))
 	if bitcask.offset+n > bitcask.options.maxFileSize {
 		flag := os.O_CREATE | os.O_APPEND | os.O_WRONLY
@@ -247,14 +248,14 @@ func (bitcask *Bitcask) putLocked(buf []byte) error {
 	return nil
 }
 
-func (bitcask *Bitcask) Delete(key []byte) error {
+func (bitcask *Bitcask) Delete(ctx context.Context, key []byte) error {
 	ts := uint32(time.Now().Unix())
 	buf := entry.Encode(key, []byte{}, ts)
 
 	bitcask.mu.Lock()
 	defer bitcask.mu.Unlock()
 
-	if err := bitcask.putLocked(buf); err != nil {
+	if err := bitcask.putLocked(ctx, buf); err != nil {
 		return err
 	}
 	bitcask.keydir.Delete(string(key))
