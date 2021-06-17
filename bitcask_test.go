@@ -1,6 +1,7 @@
 package bitcask
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"sync"
@@ -50,11 +51,12 @@ func TestOpenOneFileDir(t *testing.T) {
 	assert.EqualValues(t, bitcask.offset, 0)
 
 	// put
+	ctx := context.Background()
 	n := 128
 	for i := 0; i < n; i++ {
 		key := strconv.Itoa(i)
 		value := key
-		err = bitcask.Put([]byte(key), []byte(value))
+		err = bitcask.Put(ctx, []byte(key), []byte(value))
 		assert.Nil(t, err)
 	}
 
@@ -73,7 +75,7 @@ func TestOpenOneFileDir(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		key := strconv.Itoa(i)
-		value, err := bitcask.Get([]byte(key))
+		value, err := bitcask.Get(ctx, []byte(key))
 		assert.Nil(t, err)
 		assert.Equal(t, key, string(value))
 	}
@@ -82,7 +84,7 @@ func TestOpenOneFileDir(t *testing.T) {
 	m := 64
 	for i := 0; i < m; i++ {
 		key := strconv.Itoa(i)
-		err := bitcask.Delete([]byte(key))
+		err := bitcask.Delete(ctx, []byte(key))
 		assert.Nil(t, err)
 	}
 
@@ -100,7 +102,7 @@ func TestOpenOneFileDir(t *testing.T) {
 	assert.EqualValues(t, bitcask.fileID, 1)
 	for i := m; i < n; i++ {
 		key := strconv.Itoa(i)
-		value, err := bitcask.Get([]byte(key))
+		value, err := bitcask.Get(ctx, []byte(key))
 		assert.Nil(t, err)
 		assert.Equal(t, key, string(value))
 	}
@@ -126,13 +128,14 @@ func TestPut1(t *testing.T) {
 	key := []byte("key")
 	value := []byte("value")
 
-	err = bitcask.Put(key, value)
+	ctx := context.Background()
+	err = bitcask.Put(ctx, key, value)
 	assert.Equal(t, err, nil)
 	assert.EqualValues(t, bitcask.fileID, 1)
 	assert.NotNil(t, bitcask.file)
 	assert.EqualValues(t, bitcask.offset, 16+len(key)+len(value))
 
-	v, err := bitcask.Get(key)
+	v, err := bitcask.Get(ctx, key)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, v, value)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 1)
@@ -148,25 +151,26 @@ func TestPut2(t *testing.T) {
 	value := []byte("value")
 
 	// put key value
-	err = bitcask.Put(key, value)
+	ctx := context.Background()
+	err = bitcask.Put(ctx, key, value)
 	assert.Equal(t, err, nil)
 	assert.EqualValues(t, bitcask.fileID, 1)
 	assert.NotNil(t, bitcask.file)
 	assert.EqualValues(t, bitcask.offset, 16+len(key)+len(value))
 
-	v, err := bitcask.Get(key)
+	v, err := bitcask.Get(ctx, key)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, v, value)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 1)
 
 	// put key value
-	err = bitcask.Put(key, value)
+	err = bitcask.Put(ctx, key, value)
 	assert.Equal(t, err, nil)
 	assert.EqualValues(t, bitcask.fileID, 2)
 	assert.NotNil(t, bitcask.file)
 	assert.EqualValues(t, bitcask.offset, 16+len(key)+len(value))
 
-	v, err = bitcask.Get(key)
+	v, err = bitcask.Get(ctx, key)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, v, value)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 2)
@@ -179,7 +183,9 @@ func TestGetMiss(t *testing.T) {
 	assert.Equal(t, err, nil)
 
 	key := []byte("key")
-	v, err := bitcask.Get(key)
+
+	ctx := context.Background()
+	v, err := bitcask.Get(ctx, key)
 	assert.Nil(t, err)
 	assert.Nil(t, v)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 0)
@@ -194,15 +200,16 @@ func TestGetHit(t *testing.T) {
 	key := []byte("key")
 	value := []byte("value")
 
-	v, err := bitcask.Get(key)
+	ctx := context.Background()
+	v, err := bitcask.Get(ctx, key)
 	assert.Nil(t, err)
 	assert.Nil(t, v)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 0)
 
-	err = bitcask.Put(key, value)
+	err = bitcask.Put(ctx, key, value)
 	assert.Equal(t, err, nil)
 
-	v, err = bitcask.Get(key)
+	v, err = bitcask.Get(ctx, key)
 	assert.Nil(t, err)
 	assert.Equal(t, v, value)
 	assert.Equal(t, syncMapLen(bitcask.rfiles), 1)
@@ -217,17 +224,18 @@ func TestDelete(t *testing.T) {
 	key := []byte("key")
 	value := []byte("value")
 
-	err = bitcask.Put(key, value)
+	ctx := context.Background()
+	err = bitcask.Put(ctx, key, value)
 	assert.Nil(t, err)
 
-	v, err := bitcask.Get(key)
+	v, err := bitcask.Get(ctx, key)
 	assert.Nil(t, err)
 	assert.Equal(t, v, value)
 
-	err = bitcask.Delete(key)
+	err = bitcask.Delete(ctx, key)
 	assert.Nil(t, err)
 
-	v, err = bitcask.Get(key)
+	v, err = bitcask.Get(ctx, key)
 	assert.Nil(t, err)
 	assert.Nil(t, v)
 }
@@ -238,11 +246,12 @@ func TestLen(t *testing.T) {
 	bitcask, err := Open(dir)
 	assert.Equal(t, err, nil)
 
+	ctx := context.Background()
 	n := 1024
 	for i := 0; i < n; i++ {
 		key := strconv.Itoa(i)
 		value := key
-		err = bitcask.Put([]byte(key), []byte(value))
+		err = bitcask.Put(ctx, []byte(key), []byte(value))
 		assert.Nil(t, err)
 	}
 	assert.Equal(t, bitcask.Len(), n)
@@ -259,9 +268,10 @@ func BenchmarkPut(b *testing.B) {
 	key := []byte("key")
 	value := []byte("value")
 
+	ctx := context.Background()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := bitcask.Put(key, value); err != nil {
+		if err := bitcask.Put(ctx, key, value); err != nil {
 			panic(err)
 		}
 	}
@@ -278,10 +288,11 @@ func BenchmarkPutParallel(b *testing.B) {
 	key := []byte("key")
 	value := []byte("value")
 
+	ctx := context.Background()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if err := bitcask.Put(key, value); err != nil {
+			if err := bitcask.Put(ctx, key, value); err != nil {
 				panic(err)
 			}
 		}
@@ -299,13 +310,14 @@ func BenchmarkGet(b *testing.B) {
 	key := []byte("key")
 	value := []byte("value")
 
-	if err := bitcask.Put(key, value); err != nil {
+	ctx := context.Background()
+	if err := bitcask.Put(ctx, key, value); err != nil {
 		panic(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := bitcask.Get(key); err != nil {
+		if _, err := bitcask.Get(ctx, key); err != nil {
 			panic(err)
 		}
 	}
@@ -322,14 +334,15 @@ func BenchmarkGetParallel(b *testing.B) {
 	key := []byte("key")
 	value := []byte("value")
 
-	if err := bitcask.Put(key, value); err != nil {
+	ctx := context.Background()
+	if err := bitcask.Put(ctx, key, value); err != nil {
 		panic(err)
 	}
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if _, err := bitcask.Get(key); err != nil {
+			if _, err := bitcask.Get(ctx, key); err != nil {
 				panic(err)
 			}
 		}

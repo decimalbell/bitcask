@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"strings"
@@ -14,7 +15,7 @@ var (
 	errInvalidArgsLen = errors.New("bitcask: invalid args len")
 )
 
-type handler func(conn redcon.Conn, cmd redcon.Command) error
+type handler func(ctx context.Context, conn redcon.Conn, cmd redcon.Command) error
 
 type server struct {
 	bitcask *bitcask.Bitcask
@@ -55,7 +56,8 @@ func (s *server) handler(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteError("ERR Unknown or disabled command '" + string(cmd.Args[0]) + "'")
 		return
 	}
-	err := handler(conn, cmd)
+	ctx := context.Background()
+	err := handler(ctx, conn, cmd)
 	switch err {
 	case nil:
 	case errInvalidArgsLen:
@@ -74,7 +76,7 @@ func (s *server) closed(conn redcon.Conn, err error) {
 	log.Printf("closed conn: %v", conn)
 }
 
-func (s *server) ping(conn redcon.Conn, cmd redcon.Command) error {
+func (s *server) ping(ctx context.Context, conn redcon.Conn, cmd redcon.Command) error {
 	str := "PONG"
 	if len(cmd.Args) > 2 {
 		return errInvalidArgsLen
@@ -85,12 +87,12 @@ func (s *server) ping(conn redcon.Conn, cmd redcon.Command) error {
 	return nil
 }
 
-func (s *server) get(conn redcon.Conn, cmd redcon.Command) error {
+func (s *server) get(ctx context.Context, conn redcon.Conn, cmd redcon.Command) error {
 	if len(cmd.Args) != 2 {
 		return errInvalidArgsLen
 	}
 	key := cmd.Args[1]
-	value, err := s.bitcask.Get(key)
+	value, err := s.bitcask.Get(ctx, key)
 	if err != nil {
 		return err
 	}
@@ -102,13 +104,13 @@ func (s *server) get(conn redcon.Conn, cmd redcon.Command) error {
 	return nil
 }
 
-func (s *server) set(conn redcon.Conn, cmd redcon.Command) error {
+func (s *server) set(ctx context.Context, conn redcon.Conn, cmd redcon.Command) error {
 	if len(cmd.Args) != 3 {
 		return errInvalidArgsLen
 	}
 	key := cmd.Args[1]
 	value := cmd.Args[2]
-	if err := s.bitcask.Put(key, value); err != nil {
+	if err := s.bitcask.Put(ctx, key, value); err != nil {
 		return err
 	}
 	conn.WriteString("OK")
