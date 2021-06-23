@@ -7,4 +7,4 @@ run:
 test:
 	go test -race
 bench:
-	go test -bench=. -benchmem
+	go test -bench=. -benchmem -benchtime=3s
