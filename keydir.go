@@ -1,45 +1,70 @@
 package bitcask
 
 import (
+	"hash/fnv"
 	"sync"
 )
 
-type keydir struct {
+const n = 512
+
+type shard struct {
 	mu sync.RWMutex
 	m  map[string]*item
 }
 
+type keydir struct {
+	shards [n]*shard
+}
+
 func NewKeydir() *keydir {
-	return &keydir{
-		m: make(map[string]*item),
+	kd := new(keydir)
+	for i := 0; i < n; i++ {
+		kd.shards[i] = &shard{
+			m: make(map[string]*item),
+		}
 	}
+	return kd
+}
+
+func (kd *keydir) shard(key string) *shard {
+	h := fnv.New64()
+	h.Write([]byte(key))
+	return kd.shards[h.Sum64()%n]
 }
 
 func (kd *keydir) Get(key string) (*item, bool) {
-	kd.mu.RLock()
-	defer kd.mu.RUnlock()
+	shard := kd.shard(key)
+	shard.mu.RLock()
+	defer shard.mu.RUnlock()
 
-	item, ok := kd.m[key]
+	item, ok := shard.m[key]
 	return item, ok
 }
 
 func (kd *keydir) Put(key string, item *item) {
-	kd.mu.Lock()
-	defer kd.mu.Unlock()
+	shard := kd.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	kd.m[key] = item
+	shard.m[key] = item
 }
 
 func (kd *keydir) Delete(key string) {
-	kd.mu.Lock()
-	defer kd.mu.Unlock()
+	shard := kd.shard(key)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
 
-	delete(kd.m, key)
+	delete(shard.m, key)
 }
 
+// TODO: performance optimization
 func (kd *keydir) Len() int {
-	kd.mu.RLock()
-	defer kd.mu.RUnlock()
-
-	return len(kd.m)
+	l := 0
+	for i := 0; i < n; i++ {
+		shard := kd.shards[i]
+		shard.mu.RLock()
+		l += len(kd.shards[i].m)
+		shard.mu.RUnlock()
+	}
+	return l
 }
