@@ -2,6 +2,7 @@ package bitcask
 
 import (
 	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -100,7 +101,7 @@ func BenchmarkKeydirPut(b *testing.B) {
 	}
 }
 
-func BenchmarkKeydirPutParallel(b *testing.B) {
+func BenchmarkKeydirPutKeyParallel(b *testing.B) {
 	keydir := NewKeydir()
 	key := "key"
 	item := &item{
@@ -114,6 +115,31 @@ func BenchmarkKeydirPutParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			keydir.Put(key, item)
+		}
+	})
+}
+
+func BenchmarkKeydirPutKeysParallel(b *testing.B) {
+	keydir := NewKeydir()
+
+	keys := make([]string, b.N)
+	for i := 0; i < b.N; i++ {
+		keys[i] = strconv.Itoa(i)
+	}
+
+	item := &item{
+		fileID:      1,
+		valueSize:   2,
+		valueOffset: 4,
+		timestamp:   8,
+	}
+
+	var i int32
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			keydir.Put(keys[atomic.LoadInt32(&i)], item)
+			atomic.AddInt32(&i, 1)
 		}
 	})
 }
@@ -132,7 +158,7 @@ func BenchmarkKeydirDelete(b *testing.B) {
 	}
 }
 
-func BenchmarkKeydirDeleteParallel(b *testing.B) {
+func BenchmarkKeydirDeleteKeyParallel(b *testing.B) {
 	keydir := NewKeydir()
 	key := "key"
 
@@ -140,6 +166,24 @@ func BenchmarkKeydirDeleteParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			keydir.Delete(key)
+		}
+	})
+}
+
+func BenchmarkKeydirDeleteKeysParallel(b *testing.B) {
+	keydir := NewKeydir()
+
+	keys := make([]string, b.N)
+	for i := 0; i < b.N; i++ {
+		keys[i] = strconv.Itoa(i)
+	}
+
+	var i int32
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			keydir.Delete(keys[atomic.LoadInt32(&i)])
+			atomic.AddInt32(&i, 1)
 		}
 	})
 }
