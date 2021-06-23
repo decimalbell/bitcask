@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	dir  = flag.String("dir", "../../data", "dir")
+	dir  = flag.String("dir", "../data", "dir")
 	addr = flag.String("addr", "0.0.0.0:9736", "addr")
 )
 
